@@ -36,38 +36,50 @@ function formatUrlOutput(url, shortUrl)
 
 
 app.get('/new/:url*', function (req, res){
-  
+  var allow = (req.query.allow === "true") || false;
   var host = "http://"+req.headers.host+"/";
   
-  var newUrl = req.url.slice(5);
+  var newUrl = req.url.slice(5).replace("?allow=true", "");
   
-  // Add http:// if url doesn't have it already
-  if (!newUrl.substr(0,7).match(/http(s?):\/\//))
+  if (!allow) {
+    // Add http:// if url doesn't have it already
+    if (!newUrl.substr(0,7).match(/http(s?):\/\//))
+    {
+      newUrl = "http://" + newUrl;
+    }
+    
+    // ~~Checking if url exists~~ //
+  	// Basic check
+  	if (newUrl.indexOf(".") === -1) 
+  	{
+  	  return res.json({error: "URL invalid"});
+  	}
+    
+    // Second check
+    var test_url = newUrl.split(/[(\/\/)(/)]/); // Get url without http://
+  	test_url = test_url[2];
+  	
+  	
+  	/*if (!res.headersSent)
+  	{*/
+  	
+  	var options = {method: 'HEAD', host: test_url, port: 80, path: '/'};
+    var urlCheck = http.request(options, function(){});
+    
+    urlCheck.on('error', function (e) {
+      return res.json({error: "URL not found"});
+    });
+    urlCheck.end(addUrl);
+    	
+  	// End of Second Check
+  	
+  }
+  else
   {
-    newUrl = "http://" + newUrl;
+    addUrl();
   }
   
-  // ~~Checking if url exists~~ //
-	// Basic check
-	if (newUrl.indexOf(".") === -1) 
-	{
-	  return res.json({error: "URL invalid"});
-	}
-  
-  // Second check
-  var test_url = newUrl.split(/[(\/\/)(/)]/); // Get url without http://
-	test_url = test_url[2];
-	
-	var options = {method: 'HEAD', host: test_url, port: 80, path: '/'};
-	
-	var urlCheck = http.request(options, function(){});
-	urlCheck.on('error', function (e) {
-	  res.send({error: "URL not found"});
-	});
-	urlCheck.end(addUrl(newUrl));
-	// End of Second Check
-  
-  function addUrl(newUrl)
+  function addUrl()
   {
     var url = new Url({url: newUrl});
     
@@ -81,13 +93,20 @@ app.get('/new/:url*', function (req, res){
           url.save(function(err, urlDoc) {
           if (err) return console.error(err);
           
-          res.send(formatUrlOutput(urlDoc.get('url'),host+urlDoc.get('_id')));  
+          res.json(formatUrlOutput(urlDoc.get('url'),host+urlDoc.get('_id')));  
           });
         }
         else
         {
           // Returns url already stored in database
-          res.send(formatUrlOutput(urlDoc.get('url'),host+urlDoc.get('_id')));
+          if (res.headersSent)
+          {
+            console.log("Ship has sailed");
+          }
+          else
+          {
+            res.json(formatUrlOutput(urlDoc.get('url'),host+urlDoc.get('_id')));
+          }
         }
     });
   }
